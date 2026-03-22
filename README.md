@@ -38,4 +38,5 @@ Tested on a Windows 11 host, the emulated card appears as a 128 MB FAT16 volume.
 * Test the boost mode as claimed by the IC. Guess they included it to saturate USB HS speeds, without the complications of 1.8V voltage switch.
 * Create an external strobe signal from the SD_CLK rising edges, would simplify the PIO SMs and allow for higher clock speeds.
 * USB 3.0 card readers too are quite cheap, and SD104 mode would allow for ~90 MB/s but that involves 1.8V signalling (possible) and the need to sample a 104/208 MHz SD_CLK (unlikely). Most resources mention this mode uses dynamic phase alignment, so who knows.
-* Find a better MBR/boot sector for the emulated volume? The current one is just copied from the UF2 bootloader.
+* Find a better MBR/boot sector for the emulated volume? The current one was copied from the UF2 bootloader.
+* Check if dynamic CRC response tokens might be feasible, currently returning success always.
