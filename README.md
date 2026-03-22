@@ -1,9 +1,9 @@
 # Pico SD Card Emulator / USB HS Link
 
-SD Card Emulator for the Raspberry Pi Pico 2 (RP2350) designed to act as a high-speed data link. By emulating a standard SD card in 4-bit mode, this project allows one to use cheap USB HS card reader ICs for streaming arbitrary data to and from the Pico 2. Speeds of ~12.5MB/s or ~25MB/s (or even ~40MB/s in boost mode) are possible.
+SD Card Emulator for Pico 2 (RP2350). By emulating a standard SD card in 4-bit mode, this allows one to use cheap USB HS card reader ICs for streaming arbitrary data over a block device interface. With 6 GPIOs, speeds of ~12.5MB/s or ~25MB/s (or even ~40MB/s in boost mode) are possible. Can (be modified to) work with any SDIO host controller, not just USB.
 
 ## Hardware
- SDIO is forced/limited to 3.3V signalling, to keep the setup simple. The project is geared towards ICs like GL823K (Genesys Logic) that cost <$0.40 in single qty. This code was tested with a generic USB3.0 card reader, with long soldered wires and set to the default speed mode (25 MHz SD_CLK). Pico 2 is clocked at 250 MHz. The card reader was connected to the Pico 2 as follows:
+ SDIO was forced/limited to 3.3V signalling, to keep the setup simple. The project is geared towards ICs like GL823K (Genesys Logic) that cost <$0.40 in single qty. This code was tested with a generic USB3.0 card reader, with long soldered wires and set to the default speed mode (25 MHz SD_CLK). Pico 2 is clocked at 250 MHz. The card reader was connected to the Pico 2 as follows:
 
 ```
 SD_CMD  <-> GP0
@@ -18,7 +18,7 @@ SD_DAT3 <-> GP5
 The SDIO protocol is not very well documented, and the information available is scattered across various sources or paywalled. Not to mention the timing constraints of the protocol (also not available in the public datasheets), which are (needlessly?) strict for command and token responses. So the basic goal was to quickly bring the host to a data transfer state. The "canned" responses used here might not satisfy all SD card readers. CRC16 calculation could limit max throughput, but unlikely <50 MB/s.
 
 ## Host Side Interface
-Tested on a Windows 11 host, the emulated card appears as a 128 MB FAT16 volume. The MBR (LBA 0) and boot sector (LBA 1) were copied from RP2350's own UF2 bootloader "virtual" volume. I expected aggressive read-aheads or caching, but it seems perfectly 1:1 when the volume is opened with the right flags. 512-byte aligned reads/writes are translated to exactly that on SDIO side. USBPcap is also useful for monitoring the SCSI/BOT commands.
+Tested on a Windows 11 host, the emulated card appears as a 128 MB FAT16 volume. The MBR (LBA 0) and boot sector (LBA 1) were copied from RP2350's own UF2 bootloader "virtual" volume. I expected aggressive read-aheads or caching, but it works 1:1 when the volume is opened with the right flags. 512-byte aligned reads/writes are translated to exactly that on SDIO side. USBPcap is also useful for monitoring the SCSI/BOT commands.
 
 ## Pico 2 Implementation
 
