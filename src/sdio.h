@@ -15,12 +15,8 @@ void sdio_init(PIO pio, uint cmd_pin, uint clk_pin, uint dat_pin_base);
 int sdio_handle_cmd(uint32_t *arg_out, uint32_t *payload);
 
 void sdio_cmd_respond(const uint8_t *bytes, size_t payload_len);
-uint8_t sdio_crc7(const uint8_t *data, size_t len);
 
-void sdio_scr_response(uint32_t * buf);
-void sdio_swfn_status(uint32_t * buf, uint8_t set_mode);
 void sdio_send_block(uint32_t * buf);
 int sdio_receive_block(uint32_t * buf);
-void sdio_dat_send(uint32_t *data_ptr, uint32_t n);
 
 #endif // SDIO_H

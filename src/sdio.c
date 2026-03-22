@@ -45,13 +45,31 @@ uint8_t sd_resp_csd[18] = {
     0x01, 0xFF // END + padding
 };
 
-// CRC-7 LUT, use [7:1] bits
-static uint8_t crc7_lut[256];
 
-uint8_t sdio_crc7(const uint8_t *data, size_t len) {
+// Table lookup for calculating CRC-7 checksum that is used in SDIO command packets.
+static const uint8_t crc7_table[256] = {
+	0x00, 0x12, 0x24, 0x36, 0x48, 0x5a, 0x6c, 0x7e,	0x90, 0x82, 0xb4, 0xa6, 0xd8, 0xca, 0xfc, 0xee,
+	0x32, 0x20, 0x16, 0x04, 0x7a, 0x68, 0x5e, 0x4c,	0xa2, 0xb0, 0x86, 0x94, 0xea, 0xf8, 0xce, 0xdc,
+	0x64, 0x76, 0x40, 0x52, 0x2c, 0x3e, 0x08, 0x1a,	0xf4, 0xe6, 0xd0, 0xc2, 0xbc, 0xae, 0x98, 0x8a,
+	0x56, 0x44, 0x72, 0x60, 0x1e, 0x0c, 0x3a, 0x28,	0xc6, 0xd4, 0xe2, 0xf0, 0x8e, 0x9c, 0xaa, 0xb8,
+	0xc8, 0xda, 0xec, 0xfe, 0x80, 0x92, 0xa4, 0xb6,	0x58, 0x4a, 0x7c, 0x6e, 0x10, 0x02, 0x34, 0x26,
+	0xfa, 0xe8, 0xde, 0xcc, 0xb2, 0xa0, 0x96, 0x84,	0x6a, 0x78, 0x4e, 0x5c, 0x22, 0x30, 0x06, 0x14,
+	0xac, 0xbe, 0x88, 0x9a, 0xe4, 0xf6, 0xc0, 0xd2,	0x3c, 0x2e, 0x18, 0x0a, 0x74, 0x66, 0x50, 0x42,
+	0x9e, 0x8c, 0xba, 0xa8, 0xd6, 0xc4, 0xf2, 0xe0,	0x0e, 0x1c, 0x2a, 0x38, 0x46, 0x54, 0x62, 0x70,
+	0x82, 0x90, 0xa6, 0xb4, 0xca, 0xd8, 0xee, 0xfc,	0x12, 0x00, 0x36, 0x24, 0x5a, 0x48, 0x7e, 0x6c,
+	0xb0, 0xa2, 0x94, 0x86, 0xf8, 0xea, 0xdc, 0xce,	0x20, 0x32, 0x04, 0x16, 0x68, 0x7a, 0x4c, 0x5e,
+	0xe6, 0xf4, 0xc2, 0xd0, 0xae, 0xbc, 0x8a, 0x98,	0x76, 0x64, 0x52, 0x40, 0x3e, 0x2c, 0x1a, 0x08,
+	0xd4, 0xc6, 0xf0, 0xe2, 0x9c, 0x8e, 0xb8, 0xaa,	0x44, 0x56, 0x60, 0x72, 0x0c, 0x1e, 0x28, 0x3a,
+	0x4a, 0x58, 0x6e, 0x7c, 0x02, 0x10, 0x26, 0x34,	0xda, 0xc8, 0xfe, 0xec, 0x92, 0x80, 0xb6, 0xa4,
+	0x78, 0x6a, 0x5c, 0x4e, 0x30, 0x22, 0x14, 0x06,	0xe8, 0xfa, 0xcc, 0xde, 0xa0, 0xb2, 0x84, 0x96,
+	0x2e, 0x3c, 0x0a, 0x18, 0x66, 0x74, 0x42, 0x50,	0xbe, 0xac, 0x9a, 0x88, 0xf6, 0xe4, 0xd2, 0xc0,
+	0x1c, 0x0e, 0x38, 0x2a, 0x54, 0x46, 0x70, 0x62,	0x8c, 0x9e, 0xa8, 0xba, 0xc4, 0xd6, 0xe0, 0xf2
+};
+
+static uint8_t sdio_crc7(const uint8_t *data, size_t len) {
     uint8_t crc = 0;
     for (size_t i = 0; i < len; i++) {
-        crc = crc7_lut[crc ^ data[i]];
+        crc = crc7_table[crc ^ data[i]];
     }
     return (crc & 0xFE) | 0x01;
 }
@@ -100,6 +118,7 @@ void sdio_set_dat_mode(uint8_t mode) {
     pio_sm_set_enabled(sdio_pio, SM_DAT, true);
 }
 
+
 void sdio_init(PIO pio, uint cmd_pin, uint clk_pin, uint dat_pin_base) {
     sdio_pio = pio;
     _dat_pin_base = dat_pin_base;
@@ -137,60 +156,12 @@ void sdio_init(PIO pio, uint cmd_pin, uint clk_pin, uint dat_pin_base) {
     // ---- DAT read/write ----
     sdio_set_dat_mode(SD_DAT_MODE_4B_WR);
 
-    // Generate CRC-7 lookup table
-    for (int i = 0; i < 256; i++) {
-        uint8_t crc = i;
-        for (int j = 0; j < 8; j++) {
-            if (crc & 0x80) crc = (crc << 1) ^ 0x12; // Polynomial 0x09 << 1
-            else crc <<= 1;
-        }
-        crc7_lut[i] = crc;
-    }
-
     // Initialize pre-formatted responses
     sd_resp_cid[16] = sdio_crc7(&sd_resp_cid[1], 15);
     sd_resp_csd[16] = sdio_crc7(&sd_resp_csd[1], 15);
     sd_resp_r1[5]   = sdio_crc7(sd_resp_r1, 5);
     sd_resp_r6[5]   = sdio_crc7(sd_resp_r6, 5);
     sd_resp_r7[5]   = sdio_crc7(sd_resp_r7, 5);
-}
-
-
-/**
- * Stateful SDIO command handler.
- * @return command index if a command was processed, -1 if no command in FIFO.
- */
-int sdio_handle_cmd(uint32_t *arg_out, uint32_t *payload) {
-    if (pio_sm_is_rx_fifo_empty(sdio_pio, SM_CMD)) return -1;
-
-    // 1. Capture the 48-bit command frame (3 words)
-    uint32_t hw1 = pio_sm_get_blocking(sdio_pio, SM_CMD);
-    uint8_t cmd_num = (hw1 >> 9) & 0x3F;
-
-    // 2. Immediate Response Path
-    if (cmd_num == 0) is_app_cmd = false;
-    else if (cmd_num == 2) sdio_cmd_respond(sd_resp_cid, 18);
-    else if (cmd_num == 3) sdio_cmd_respond(sd_resp_r6, 6);
-    else if (cmd_num == 8) sdio_cmd_respond(sd_resp_r7, 6);
-    else if (cmd_num == 9) sdio_cmd_respond(sd_resp_csd, 18);
-    else if (cmd_num == 41 && is_app_cmd) sdio_cmd_respond(sd_resp_r3, 6);
-    else sdio_cmd_respond(sd_resp_r1, 6);
-    // CMD6 (Switch Fn), CMD7 (Select), CMD12 (Stop), CMD13 (Status), 
-    // CMD17/18 (Read), CMD24/25 (Write), CMD55 (App-prefix), ACMD6, ACMD51
-
-    uint32_t hw2 = pio_sm_get_blocking(sdio_pio, SM_CMD);
-    uint32_t hw3 = pio_sm_get_blocking(sdio_pio, SM_CMD);
-    uint32_t arg = (hw1 & 0x1FF) << 23 | (hw2 << 7) | (hw3 >> 9);
-    if (arg_out) *arg_out = arg;
-
-    // 3. State-dependent Data Phase Triggers
-    bool was_app_cmd = is_app_cmd;
-    is_app_cmd = (cmd_num == 55);
-
-    if (cmd_num == 51 && was_app_cmd) sdio_scr_response(payload);
-    else if (cmd_num == 6 && !was_app_cmd)sdio_swfn_status(payload, arg >> 31);
-
-    return (int)cmd_num;
 }
 
 
@@ -207,9 +178,12 @@ void sdio_cmd_respond(const uint8_t *bytes, size_t payload_len) {
 }
 
 
-// CRC16 Checksum for 4 parallel DAT lines
+// Calculate the CRC16 checksum for parallel 4 bit lines separately.
+// When the SDIO bus operates in 4-bit mode, the CRC16 algorithm
+// is applied to each line separately and generates total of
 // 4 x 16 = 64 bits of checksum.
-uint64_t sdio_crc16_4bit(uint32_t * data, uint16_t size) {
+__attribute__((optimize("O3")))
+static uint64_t sdio_crc16_4bit(uint32_t * data, uint16_t size) {
     uint64_t crc = 0;
 
     for(int i = 0; i < size; i++) {
@@ -217,13 +191,13 @@ uint64_t sdio_crc16_4bit(uint32_t * data, uint16_t size) {
 
         uint32_t data_out = crc >> 32;
         crc = crc << 32;
-        data_out ^= (data_out >> 16);
-        data_out ^= (data_in >> 16);
-
-        uint64_t dw_xor = data_out ^ data_in;
-        crc ^= dw_xor;
-        crc ^= dw_xor << (5 * 4);
-        crc ^= dw_xor << (12 * 4);
+        
+        uint64_t xor32 = data_out ^ data_in;
+        xor32 ^= (xor32 >> 16);
+        uint64_t xor64 = xor32;
+        crc ^= xor64;
+        crc ^= xor64 << (5 * 4);
+        crc ^= xor64 << (12 * 4);
     }
     
     return crc;
@@ -233,8 +207,7 @@ uint64_t sdio_crc16_4bit(uint32_t * data, uint16_t size) {
 /**
  * Data block sender for SD_DAT lines (4-bit mode)
  */
-__attribute__((optimize("O3")))
-void sdio_dat_send(uint32_t *data_ptr, uint32_t n) {
+static void sdio_dat_send(uint32_t *data_ptr, uint32_t n) {
     // 1. Calculate CRC16 for the 4-bit bus
     uint64_t crc = sdio_crc16_4bit(data_ptr, n);
 
@@ -252,7 +225,7 @@ void sdio_dat_send(uint32_t *data_ptr, uint32_t n) {
 }
 
 
-void sdio_scr_response(uint32_t * payload) {
+static void sdio_scr_response(uint32_t * payload) {
     // 64 bits of SCR data
     payload[0] = 0x02158000; // SD Spec Version 3.0, 4-bit bus
     payload[1] = 0x00000000; // No special features
@@ -261,7 +234,7 @@ void sdio_scr_response(uint32_t * payload) {
 }
 
 
-void sdio_swfn_status(uint32_t * payload, uint8_t set_mode) {
+static void sdio_swfn_status(uint32_t * payload, uint8_t set_mode) {
     uint16_t curr = 70; // in mA
     payload[0] = curr << 16 | 0x8001;
     payload[1] = 0x8001 << 16 | 0x8001;
@@ -308,4 +281,41 @@ int sdio_receive_block(uint32_t * payload) {
     }
 
     return 0; // Success
+}
+
+/**
+ * SDIO command handler.
+ * @return command index if a command was processed, -1 if no command in FIFO.
+ */
+int sdio_handle_cmd(uint32_t *arg_out, uint32_t *payload) {
+    if (pio_sm_is_rx_fifo_empty(sdio_pio, SM_CMD)) return -1;
+
+    // 1. Capture the 48-bit command frame (3 words)
+    uint32_t hw1 = pio_sm_get_blocking(sdio_pio, SM_CMD);
+    uint8_t cmd_num = (hw1 >> 9) & 0x3F;
+
+    // 2. Immediate Response Path
+    if (cmd_num == 0) is_app_cmd = false;
+    else if (cmd_num == 2) sdio_cmd_respond(sd_resp_cid, 18);
+    else if (cmd_num == 3) sdio_cmd_respond(sd_resp_r6, 6);
+    else if (cmd_num == 8) sdio_cmd_respond(sd_resp_r7, 6);
+    else if (cmd_num == 9) sdio_cmd_respond(sd_resp_csd, 18);
+    else if (cmd_num == 41 && is_app_cmd) sdio_cmd_respond(sd_resp_r3, 6);
+    else sdio_cmd_respond(sd_resp_r1, 6);
+    // CMD6 (Switch Fn), CMD7 (Select), CMD12 (Stop), CMD13 (Status), 
+    // CMD17/18 (Read), CMD24/25 (Write), CMD55 (App-prefix), ACMD6, ACMD51
+
+    uint32_t hw2 = pio_sm_get_blocking(sdio_pio, SM_CMD);
+    uint32_t hw3 = pio_sm_get_blocking(sdio_pio, SM_CMD);
+    uint32_t arg = (hw1 & 0x1FF) << 23 | (hw2 << 7) | (hw3 >> 9);
+    if (arg_out) *arg_out = arg;
+
+    // 3. State-dependent Data Phase Triggers
+    bool was_app_cmd = is_app_cmd;
+    is_app_cmd = (cmd_num == 55);
+
+    if (cmd_num == 51 && was_app_cmd) sdio_scr_response(payload);
+    else if (cmd_num == 6 && !was_app_cmd) sdio_swfn_status(payload, arg >> 31);
+
+    return (int)cmd_num;
 }
