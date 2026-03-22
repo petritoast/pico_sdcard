@@ -1,0 +1,31 @@
+.program sd_dat_rx
+.pio_version 1
+.clock_div 1
+.fifo txrx
+
+.out 1 left auto 32
+.in 4 left auto 32
+.set 4
+
+.wrap_target
+    set pindirs, 0          ; Release DAT pins (Hi-Z)
+    mov osr, y              ; Load orchestration word from Y
+
+wait_start:
+    wait 1 irq 1
+    jmp pin wait_start      ; Wait for start bit (Low)
+
+    out x, 16               ; Nibble count (1024 + 16 - 1)
+
+nibbler:
+    wait 1 irq 1
+    in pins, 4
+    jmp x-- nibbler
+
+    out x, 8                ; Token bit count (8 - 1)
+    set pindirs, 1          ; Drive DAT0 (Others Hi-Z if set_pins=4)
+resp_out:
+    wait 1 irq 1
+    out pins, 1             ; Shift out pattern (Gap + 00101)
+    jmp x-- resp_out
+.wrap

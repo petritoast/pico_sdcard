@@ -1,0 +1,23 @@
+.program sd_dat_tx
+.pio_version 1
+
+.clock_div 1
+.fifo tx
+
+.out 4 left auto 32
+.in 4 left auto 32
+.set 4
+
+
+.wrap_target
+start:
+    set pindirs,    0b0000      ; release DAT line
+
+    out x, 32              [7]  ; load shift count
+    set pindirs,    0b1111      ; drive DAT to 0 for 1 cycle
+
+single_out:
+    wait 1 irq 1
+    out pins, 4
+    jmp x-- single_out
+.wrap

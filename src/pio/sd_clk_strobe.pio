@@ -1,0 +1,15 @@
+.program sd_clk_strobe
+.pio_version 1
+
+.clock_div 1
+.in 1
+
+
+.wrap_target
+    wait 0 pin 0
+    irq 1           ; dat pio
+
+    wait 1 pin 0
+    irq 0           ; cmd pio
+
+.wrap

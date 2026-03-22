@@ -1,0 +1,36 @@
+.program sd_cmd
+.pio_version 1
+
+.clock_div 1
+.set 1
+.in 1 left auto 16
+.out 1 left auto 16
+
+.wrap_target
+    set pindirs, 0              ; release CMD line
+wait_start:
+    wait 1 irq 0
+    jmp pin wait_start          ; CMD high → not a start bit
+
+    mov x, y                    ; x = bit counter (preloaded in Y)
+cmd_cap:
+    wait 1 irq 0
+    in pins, 1
+    jmp x-- cmd_cap
+
+    mov isr, null               ; clear ISR
+
+    jmp !osre resp_start
+    jmp wait_start
+
+    ; ---- Response ----
+resp_start:
+    out x, 16                   ; x = resp_len (cycles-1)
+    set pindirs, 1              ; drive CMD line
+
+resp_out:
+    wait 1 irq 0
+    out pins, 1
+    jmp x-- resp_out
+    
+.wrap
